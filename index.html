@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Per te, Principessa 🌻</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
+
+  :root {
+    --gold:       #F5C518;
+    --deep-gold:  #E8A800;
+    --orange:     #F07B20;
+    --dark-green: #2A4E25;
+    --cream:      #FFF8E7;
+    --brown:      #5C3D0E;
+    --shadow:     rgba(92,61,14,0.18);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width:100%; height:100%; overflow-x:hidden; background:var(--cream); font-family:'Lora',serif; }
+
+  /*
+    Z-INDEX STACK
+    1  #bg-layer       flowers, always behind
+    2  #hero            transparent wrapper, pointer-events:none
+    3  #card            own stacking context via isolation:isolate
+                        pointer-events:auto — ALWAYS on top of overlay
+    4  #dark-overlay    darkens bg only, z-index < card so it can't cover it
+    5  #confetti-canvas
+    6  #resigned
+  */
+
+  /* ── BG FLOWERS ── */
+  #bg-layer {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    overflow: hidden;
+  }
+  .bg-flower {
+    position: absolute;
+    font-size: var(--sz);
+    opacity: 0.60;
+    animation: bgSpin var(--dur) linear infinite,
+               bgFloat var(--fdur) ease-in-out infinite alternate;
+    transform-origin: center;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.3s;
+  }
+  .bg-flower:hover { opacity: 1; }
+  @keyframes bgSpin  { to { transform: rotate(360deg); } }
+  @keyframes bgFloat { from { transform:translateY(0); } to { transform:translateY(-16px); } }
+
+  .bg-flower.falling {
+    animation: flowerFall var(--fall-dur,2.5s) ease-in forwards !important;
+    pointer-events: none; cursor: default;
+  }
+  @keyframes flowerFall {
+    0%   { opacity:.7; transform:translateY(0)      rotate(0deg); }
+    60%  { opacity:.4; transform:translateY(60vh)   rotate(15deg); }
+    100% { opacity:0;  transform:translateY(115vh)  rotate(25deg); }
+  }
+
+  /* ── DARK OVERLAY ──
+     z-index 4 is HIGHER than card's z-index 3, BUT card has isolation:isolate
+     which creates its own stacking context — so the overlay renders behind
+     the card's context regardless of z-index numbers on the outer stack.
+     HOWEVER to be safe we also keep overlay pointer-events away from card
+     by making the overlay not cover the card area — achieved via the card's
+     own stacking context absorbing all its children's events first.
+  */
+  #dark-overlay {
+    position: fixed; inset: 0;
+    background: transparent;
+    pointer-events: none;
+    z-index: 2; /* below card z-index:3 */
+    transition: background 1.1s ease;
+  }
+  #dark-overlay.dark { background: rgba(8,4,0,0.82); }
+  /* overlay NEVER gets pointer-events — card handles its own clicks */
+
+  /* ── HERO ── */
+  #hero {
+    position: relative; z-index: 3;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem 1rem; text-align: center;
+    pointer-events: none; /* transparent to flower clicks */
+  }
+
+  /* ── CARD ──
+     isolation:isolate = own stacking context.
+     The dark-overlay at z-index:2 (outer stack) is BELOW hero z-index:3,
+     so it can't cover the card. Card stays bright always. */
+  #card {
+    position: relative;
+    z-index: 1; /* within hero's stacking context */
+    isolation: isolate;
+    pointer-events: auto;
+    background: rgba(255,253,245,0.97);
+    backdrop-filter: blur(8px);
+    border-radius: 28px;
+    border: 2.5px solid rgba(245,197,24,0.45);
+    box-shadow: 0 8px 48px var(--shadow), inset 0 2px 0 var(--deep-gold);
+    padding: 3rem 2.8rem 2.6rem;
+    max-width: 480px; width: 92%; margin: 0 auto;
+    overflow: hidden;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  #card.hidden { opacity:0; transform:scale(0.94); pointer-events:none; }
+
+  /* ── TYPOGRAPHY ── */
+  .sunflower-deco {
+    font-size:2.8rem; display:block; margin-bottom:0.4rem;
+    animation: deco-spin 8s linear infinite;
+  }
+  @keyframes deco-spin { to { transform:rotate(360deg); } }
+
+  #card h1 {
+    font-family:'Playfair Display',serif;
+    font-size:clamp(1.9rem,5vw,2.8rem);
+    color:var(--brown); line-height:1.2; margin-bottom:0.6rem;
+    opacity:0; transform:translateY(20px);
+    animation: fadeUp 1s ease 0.3s forwards;
+  }
+  #card h1 em { font-style:italic; color:var(--orange); }
+
+  .subtitle {
+    font-style:italic; font-size:clamp(0.95rem,2.5vw,1.1rem);
+    color:var(--dark-green); margin-bottom:1.6rem; line-height:1.6;
+    opacity:0; transform:translateY(16px);
+    animation: fadeUp 1s ease 0.7s forwards;
+  }
+  @keyframes fadeUp { to { opacity:1; transform:translateY(0); } }
+
+  /* Secret btn */
+  .btn-secret {
+    font-family:'Lora',serif; font-style:italic; font-size:0.95rem;
+    color:var(--brown); background:transparent;
+    border:1.8px dashed var(--deep-gold); border-radius:50px;
+    padding:0.55rem 1.4rem; cursor:pointer; margin-top:0.3rem;
+    opacity:0; animation: fadeUp 1s ease 1.4s forwards;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .btn-secret:hover { background:rgba(245,197,24,0.15); transform:scale(1.04); }
+
+  /* Views */
+  #message-block, #sicura-block, #celebration {
+    display:none; flex-direction:column; align-items:center; gap:1.2rem;
+  }
+  #message-block.visible, #sicura-block.visible, #celebration.visible { display:flex; }
+
+  #message-block p { font-style:italic; font-size:clamp(0.95rem,2.6vw,1.08rem); color:var(--brown); line-height:1.75; text-align:center; }
+  #sicura-block p  { font-style:italic; font-size:clamp(0.95rem,2.6vw,1.08rem); color:#7a5520; line-height:1.75; text-align:center; }
+
+  .sad-flower { font-size:2.4rem; animation: wilt 2s ease-in-out infinite alternate; }
+  @keyframes wilt {
+    from { transform:rotate(-8deg) translateY(0); }
+    to   { transform:rotate(8deg)  translateY(6px); }
+  }
+
+  /* Buttons */
+  .btn-row { display:flex; gap:1rem; justify-content:center; width:100%; margin-top:0.4rem; }
+  .btn {
+    font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:700;
+    padding:0.7rem 1.9rem; border-radius:50px; border:2.5px solid transparent;
+    cursor:pointer; outline:none; transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn:active { transform:scale(0.95); }
+  .btn-si { background:var(--gold); border-color:var(--deep-gold); color:var(--brown); box-shadow:0 4px 16px rgba(245,197,24,0.45); }
+  .btn-si:hover { transform:scale(1.06); box-shadow:0 6px 22px rgba(245,197,24,0.6); }
+  .btn-no { background:transparent; border-color:#c8a04a; color:#a07030; }
+  .btn-no:hover { background:rgba(200,160,74,0.12); }
+  .btn-replay {
+    background:transparent; border-color:var(--deep-gold); color:var(--brown);
+    font-size:0.95rem; margin-top:0.4rem;
+  }
+  .btn-replay:hover { background:rgba(245,197,24,0.15); }
+
+  /* Sicura box — taller so Sì has room to roam above the No button */
+  #sicura-box { position:relative; width:100%; height:110px; margin-top:0.4rem; }
+
+  /* Dodge Sì — z-index high so it floats above the text */
+  #dodge-si {
+    position:absolute;
+    font-family:'Playfair Display',serif; font-size:1.05rem; font-weight:700;
+    padding:0.7rem 1.9rem; border-radius:50px;
+    border:2.5px solid var(--deep-gold);
+    background:var(--gold); color:var(--brown); cursor:pointer;
+    box-shadow:0 4px 16px rgba(245,197,24,0.45);
+    white-space:nowrap; left:10px; top:8px;
+    z-index: 10;
+    transition: left 0.28s cubic-bezier(0.34,1.56,0.64,1),
+                top  0.28s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  #fixed-no { position:absolute; right:0; bottom:0; }
+
+  /* Celebration */
+  #celebration .big-msg {
+    font-family:'Playfair Display',serif; font-size:clamp(1.1rem,3vw,1.5rem);
+    text-align:center; line-height:1.45;
+    animation: colorCycle 1.5s linear infinite;
+  }
+  @keyframes colorCycle {
+    0%   { color:var(--brown); }
+    33%  { color:var(--orange); }
+    66%  { color:var(--dark-green); }
+    100% { color:var(--brown); }
+  }
+  #celebration .sub-msg { font-style:italic; font-size:0.95rem; color:#a07030; text-align:center; }
+
+  /* Confetti */
+  #confetti-canvas { position:fixed; inset:0; pointer-events:none; z-index:5; }
+
+  /* Resigned toast */
+  #resigned {
+    display:none; position:fixed; bottom:2rem; left:50%;
+    transform:translateX(-50%);
+    background:rgba(255,253,245,0.97); border-radius:50px;
+    padding:0.7rem 1.6rem; font-style:italic; color:var(--brown); font-size:0.9rem;
+    z-index:6; border:1.5px solid rgba(245,197,24,0.5);
+    box-shadow:0 4px 20px var(--shadow); text-align:center;
+    animation: slideUp 0.5s ease forwards;
+  }
+  @keyframes slideUp {
+    from { opacity:0; transform:translateX(-50%) translateY(20px); }
+    to   { opacity:1; transform:translateX(-50%) translateY(0); }
+  }
+
+  @media (max-width:500px) { #card { padding:2.2rem 1.4rem 2rem; border-radius:22px; } }
+</style>
+</head>
+<body>
+
+<div id="bg-layer"></div>
+<div id="dark-overlay"></div>
+<canvas id="confetti-canvas"></canvas>
+<div id="resigned">Va bene... 🥀 ma lo sai che ti voglio bene lo stesso.</div>
+
+<div id="hero">
+  <div id="card">
+
+    <div id="default-view">
+      <span class="sunflower-deco">🌻</span>
+      <h1>Buongiorno,<br/><em>Principessa</em> 💛</h1>
+      <p class="subtitle">Ho raccolto ogni raggio di sole<br/>e l'ho trasformato in un girasole — per te.</p>
+      <button class="btn btn-secret" id="btn-secret">✨ Clicca qui per scoprire un segreto</button>
+    </div>
+
+    <div id="message-block">
+      <span style="font-size:2.4rem;">🌻💛🌻</span>
+      <p>Ciao amore, ti voglio così bene che ho raccolto<br/>tutti questi fiori per te.<br/><br/>Ti mando un grande bacio —<br/><strong>tu mi vuoi bene?</strong></p>
+      <div class="btn-row">
+        <button class="btn btn-si" id="btn-si-1">Sì 💛</button>
+        <button class="btn btn-no" id="btn-no-1">No</button>
+      </div>
+    </div>
+
+    <div id="sicura-block">
+      <span class="sad-flower">🥀</span>
+      <p>Sei <em>sicura</em>? 🥺<br/><br/>Guarda bene prima di rispondere…</p>
+      <div id="sicura-box">
+        <button id="dodge-si">Sì 💛</button>
+        <button class="btn btn-no" id="fixed-no">No 😤</button>
+      </div>
+    </div>
+
+    <div id="celebration">
+      <span style="font-size:2.6rem;animation:deco-spin 0.6s linear infinite;display:block;">🌻</span>
+      <p class="big-msg">LO SAPEVO CHE MI VOLEVI BENE! 🎉💛</p>
+      <p class="sub-msg">Sei la mia persona preferita in tutto l'universo.<br/>E anche nei girasoli. 🌻</p>
+      <button class="btn btn-replay" id="btn-replay">↩ Gioca di nuovo</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const bgLayer      = document.getElementById('bg-layer');
+const darkOverlay  = document.getElementById('dark-overlay');
+const card         = document.getElementById('card');
+const defaultView  = document.getElementById('default-view');
+const messageBlock = document.getElementById('message-block');
+const sicuraBlock  = document.getElementById('sicura-block');
+const celebView    = document.getElementById('celebration');
+const dodgeBtn     = document.getElementById('dodge-si');
+const sicuraBox    = document.getElementById('sicura-box');
+
+let celebrated = false;
+let sicuraMode = false;
+let messageShown = false;
+let dodgeX = 10, dodgeY = 13;
+let fallTimers = []; // track fall timeouts so we can cancel on reset
+
+// ── 1. PLACE / RESET FLOWERS ────────────────────────────
+function placeFlowers() {
+  // Clear any pending fall timers
+  fallTimers.forEach(t => clearTimeout(t));
+  fallTimers = [];
+
+  bgLayer.innerHTML = '';
+  const W = window.innerWidth, H = window.innerHeight;
+  const COLS = 9, ROWS = 8;
+  const cellW = W / COLS, cellH = H / ROWS;
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const sz   = 24 + Math.random() * 40;
+      const x    = col * cellW + cellW * (0.2 + Math.random() * 0.6);
+      const y    = row * cellH + cellH * (0.2 + Math.random() * 0.6);
+      const dur  = 5  + Math.random() * 16;
+      const fdur = 3  + Math.random() * 5;
+      const f = document.createElement('div');
+      f.className = 'bg-flower';
+      f.style.cssText =
+        `--sz:${sz}px;--dur:${dur}s;--fdur:${fdur}s;` +
+        `left:${x}px;top:${y}px;` +
+        `animation-delay:-${(Math.random()*dur).toFixed(2)}s,` +
+        `-${(Math.random()*fdur).toFixed(2)}s;`;
+      f.textContent = '🌻';
+      f.addEventListener('click', onFlowerClick);
+      bgLayer.appendChild(f);
+    }
+  }
+}
+placeFlowers();
+
+// ── 2. FLOWER CLICK ─────────────────────────────────────
+function onFlowerClick() {
+  if (celebrated || messageShown) return;
+  card.classList.remove('hidden');
+  showMessageBlock();
+}
+
+document.getElementById('btn-secret').addEventListener('click', () => {
+  card.classList.add('hidden');
+  messageShown = false;
+});
+
+// ── 3. BUTTON EVENTS ────────────────────────────────────
+document.getElementById('btn-si-1').addEventListener('click', showCelebration);
+document.getElementById('btn-no-1').addEventListener('click', showSicura);
+document.getElementById('fixed-no').addEventListener('click', showResigned);
+dodgeBtn.addEventListener('click', showCelebration);
+document.getElementById('btn-replay').addEventListener('click', resetAll);
+
+// ── 4. VIEW TRANSITIONS ─────────────────────────────────
+function showMessageBlock() {
+  messageShown = true;
+  defaultView.style.display  = 'none';
+  messageBlock.classList.add('visible');
+  sicuraBlock.classList.remove('visible');
+  celebView.classList.remove('visible');
+}
+
+function showSicura() {
+  messageBlock.classList.remove('visible');
+  sicuraBlock.classList.add('visible');
+  darkOverlay.classList.add('dark');
+  fallAllFlowers();
+  sicuraMode = true;
+  startDodging();
+}
+
+function showCelebration() {
+  celebrated = true; sicuraMode = false;
+  stopDodging();
+  messageBlock.classList.remove('visible');
+  sicuraBlock.classList.remove('visible');
+  celebView.classList.add('visible');
+  darkOverlay.classList.remove('dark');
+  launchConfetti();
+  celebrateBgFlowers();
+}
+
+function showResigned() {
+  sicuraBlock.classList.remove('visible');
+  stopDodging();
+  sicuraMode = false;
+  darkOverlay.classList.remove('dark');
+  placeFlowers();
+  messageBlock.classList.add('visible');
+  card.classList.remove('hidden');
+}
+
+function resetAll() {
+  celebrated = false; sicuraMode = false; messageShown = false;
+  stopDodging();
+  darkOverlay.classList.remove('dark');
+  // Reset card views
+  celebView.classList.remove('visible');
+  messageBlock.classList.remove('visible');
+  sicuraBlock.classList.remove('visible');
+  defaultView.style.display = '';
+  card.classList.remove('hidden');
+  // Fresh flowers
+  placeFlowers();
+}
+
+// ── 5. SMOOTH DODGE BUTTON ──────────────────────────────
+// Uses a set of fixed anchor positions spread across the box.
+// On cursor proximity → jumps to the anchor farthest from cursor.
+// Never overlaps the No button (bottom-right corner).
+
+// Anchors are defined as fractions of the box — computed on start
+let anchors = [];
+let currentAnchor = 0;
+
+function buildAnchors() {
+  const bw  = sicuraBox.offsetWidth;
+  const bh  = sicuraBox.offsetHeight;
+  const bw2 = dodgeBtn.offsetWidth  || 110;
+  const bh2 = dodgeBtn.offsetHeight || 44;
+  const noW = 100; // approx width of No button — keep clear of it
+  const maxX = bw - bw2 - 4;
+  const maxY = bh - bh2 - 4;
+  // Safe zone: avoid bottom-right where No lives (right ~noW px, bottom ~bh2 px)
+  const safeMaxX = bw - noW - bw2 - 8; // left of No button
+  anchors = [
+    { x: 8,          y: 8 },
+    { x: safeMaxX/2, y: 8 },
+    { x: safeMaxX,   y: 8 },
+    { x: 8,          y: maxY },
+    { x: safeMaxX/2, y: maxY },
+    { x: 8,          y: maxY/2 },
+    { x: safeMaxX,   y: maxY/2 },
+    { x: safeMaxX/2, y: maxY/2 },
+  ].map(a => ({
+    x: Math.max(4, Math.min(maxX, a.x)),
+    y: Math.max(4, Math.min(maxY, a.y))
+  }));
+}
+
+function startDodging() {
+  dodgeX = 8; dodgeY = 8;
+  dodgeBtn.style.left = dodgeX + 'px';
+  dodgeBtn.style.top  = dodgeY + 'px';
+  buildAnchors();
+  currentAnchor = 0;
+  sicuraBox.addEventListener('mousemove', onCursorNear);
+  sicuraBox.addEventListener('touchmove', onTouchNear, { passive: true });
+}
+function stopDodging() {
+  sicuraBox.removeEventListener('mousemove', onCursorNear);
+  sicuraBox.removeEventListener('touchmove', onTouchNear);
+}
+function onCursorNear(e) {
+  if (!sicuraMode) return;
+  const r = sicuraBox.getBoundingClientRect();
+  dodge(e.clientX - r.left, e.clientY - r.top);
+}
+function onTouchNear(e) {
+  if (!sicuraMode) return;
+  const r = sicuraBox.getBoundingClientRect();
+  dodge(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+}
+
+function dodge(cx, cy) {
+  const bw2 = dodgeBtn.offsetWidth  || 110;
+  const bh2 = dodgeBtn.offsetHeight || 44;
+  const btnCX = dodgeX + bw2/2;
+  const btnCY = dodgeY + bh2/2;
+  const dx = btnCX - cx, dy = btnCY - cy;
+  const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+  if (dist > 120) return; // only flee when cursor is close
+
+  // Pick the anchor farthest from the cursor
+  let bestAnchor = 0, bestDist = -1;
+  anchors.forEach((a, i) => {
+    if (i === currentAnchor) return; // don't stay in place
+    const d = Math.sqrt((a.x + bw2/2 - cx)**2 + (a.y + bh2/2 - cy)**2);
+    if (d > bestDist) { bestDist = d; bestAnchor = i; }
+  });
+
+  currentAnchor = bestAnchor;
+  dodgeX = anchors[bestAnchor].x;
+  dodgeY = anchors[bestAnchor].y;
+  dodgeBtn.style.left = dodgeX + 'px';
+  dodgeBtn.style.top  = dodgeY + 'px';
+}
+
+// ── 6. FALL ALL BG FLOWERS ──────────────────────────────
+function fallAllFlowers() {
+  fallTimers.forEach(t => clearTimeout(t));
+  fallTimers = [];
+  const all = Array.from(bgLayer.querySelectorAll('.bg-flower'));
+  all.forEach((f, i) => {
+    const t = setTimeout(() => {
+      const dur = (1.6 + Math.random() * 1.6).toFixed(2);
+      f.style.setProperty('--fall-dur', dur + 's');
+      f.classList.add('falling');
+    }, i * 40); // stagger 40ms apart — all fall in ~3s total
+    fallTimers.push(t);
+  });
+}
+
+// ── 7. CELEBRATE BG FLOWERS ─────────────────────────────
+function celebrateBgFlowers() {
+  fallTimers.forEach(t => clearTimeout(t));
+  fallTimers = [];
+  bgLayer.querySelectorAll('.bg-flower').forEach(f => {
+    f.classList.remove('falling');
+    f.style.opacity = '0.9';
+    f.style.setProperty('--dur', '0.5s');
+  });
+}
+
+// ── 8. CONFETTI ─────────────────────────────────────────
+const canvas = document.getElementById('confetti-canvas');
+const ctx    = canvas.getContext('2d');
+let particles = [], animId = null;
+
+function launchConfetti() {
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  particles = [];
+  const colors = ['#F5C518','#F07B20','#2A4E25','#E8A800','#FFF8E7','#FF9933'];
+  for (let i = 0; i < 220; i++) {
+    particles.push({
+      x: Math.random()*canvas.width, y: -20-Math.random()*canvas.height,
+      w: 6+Math.random()*8, h: 3+Math.random()*5,
+      color: colors[~~(Math.random()*colors.length)],
+      vx:(Math.random()-0.5)*4, vy:2+Math.random()*4,
+      rot:Math.random()*360, rs:(Math.random()-0.5)*6
+    });
+  }
+  cancelAnimationFrame(animId);
+  drawConfetti();
+}
+function drawConfetti() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  let alive = false;
+  particles.forEach(p => {
+    p.x+=p.vx; p.y+=p.vy; p.rot+=p.rs;
+    if (p.y < canvas.height+20) alive = true;
+    ctx.save();
+    ctx.translate(p.x+p.w/2, p.y+p.h/2);
+    ctx.rotate(p.rot*Math.PI/180);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    ctx.restore();
+  });
+  if (alive) animId = requestAnimationFrame(drawConfetti);
+  else ctx.clearRect(0,0,canvas.width,canvas.height);
+}
+
+// ── 9. RESIZE ───────────────────────────────────────────
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  placeFlowers();
+});
+</script>
+</body>
+</html>
